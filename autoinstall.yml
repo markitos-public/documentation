@@ -1,0 +1,99 @@
+#cloud-config
+autoinstall:
+  version: 1
+  identity:
+    hostname: "{{ hostname }}" # Pregunta por el hostname durante la instalación
+    username: "{{ username }}" # Pregunta por el nombre de usuario
+    password: "{{ password | password_hash('crypt') }}" # Contraseña cifrada
+
+  ssh:
+    install-server: true
+    allow-pw: true # Permitir acceso SSH con contraseña (ajusta según necesidades de seguridad)
+
+  packages:
+    # Lista de paquetes a instalar durante la instalación
+    - ccze
+    - software-properties-common
+    - nano
+    - git
+    - sshpass
+    - make
+    - progress
+    - docker-compose-v2
+    - docker.io
+    - btop
+    - curl
+    - apt-transport-https
+    - ca-certificates
+    - net-tools
+    - wget
+
+  late-commands:
+    # Configuración inicial
+    - curtin in-target --target=/target -- bash -c "
+        echo 'export LANG=es_ES.UTF-8' >> /etc/bash.bashrc;
+        echo 'export EDITOR=nano' >> /etc/bash.bashrc"
+
+    # Configurar alias SSH
+    - curtin in-target --target=/target -- bash -c "
+        echo 'alias prometeo1=\"sshpass -p {{ password }} ssh {{ username }}@prometeo1\"' >> /etc/bash.bashrc;
+        echo 'alias titan1=\"sshpass -p {{ password }} ssh {{ username }}@titan1\"' >> /etc/bash.bashrc;
+        echo 'alias titan2=\"sshpass -p {{ password }} ssh {{ username }}@titan2\"' >> /etc/bash.bashrc;
+        echo 'alias titan3=\"sshpass -p {{ password }} ssh {{ username }}@titan3\"' >> /etc/bash.bashrc"
+
+    # Configurar permisos para Docker
+    - curtin in-target --target=/target -- bash -c "
+        usermod -aG docker {{ username }};
+        chown {{ username }} /var/run/docker.sock"
+
+    # Generar clave SSH para GitHub
+    - curtin in-target --target=/target -- bash -c "
+        ssh-keygen -t rsa -b 4096 -C '{{ email }}' -f /home/{{ username }}/.ssh/github -N '';
+        eval \$(ssh-agent -s);
+        ssh-add /home/{{ username }}/.ssh/github"
+
+    # Instalar OBS Studio
+    - curtin in-target --target=/target -- bash -c "
+        add-apt-repository ppa:obsproject/obs-studio -y;
+        apt update;
+        apt install obs-studio -y"
+
+    # Instalar Visual Studio Code
+    - curtin in-target --target=/target -- bash -c "
+        wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/microsoft.gpg;
+        echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main' > /etc/apt/sources.list.d/vscode.list;
+        apt update;
+        apt install code -y"
+
+    # Instalar Google Chrome
+    - curtin in-target --target=/target -- bash -c "
+        wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb;
+        dpkg -i google-chrome-stable_current_amd64.deb || apt install -f -y;
+        rm google-chrome-stable_current_amd64.deb"
+
+    # Instalar Postman
+    - curtin in-target --target=/target -- bash -c "
+        wget https://dl.pstmn.io/download/latest/linux_64 -O postman.tar.gz;
+        tar -xzf postman.tar.gz -C /opt;
+        ln -s /opt/Postman/Postman /usr/bin/postman;
+        rm postman.tar.gz"
+
+    # Instalar Go
+    - curtin in-target --target=/target -- bash -c "
+        wget https://go.dev/dl/go1.24.1.linux-amd64.tar.gz -O go.tar.gz;
+        tar xvfz go.tar.gz -C /usr/local/;
+        echo 'export PATH=\$PATH:/usr/local/go/bin' >> /etc/bash.bashrc;
+        rm go.tar.gz"
+
+    # Instalar Node.js con NVM
+    - curtin in-target --target=/target -- bash -c "
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.35.3/install.sh | bash;
+        source /root/.bashrc;
+        nvm install v20.17.0"
+
+    # Instalar Oh My Bash
+    - curtin in-target --target=/target -- bash -c "
+        bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)\""
+
+    # Actualizar base de datos de ubicaciones
+    - curtin in-target --target=/target -- updatedb
