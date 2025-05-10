@@ -110,6 +110,7 @@ autoinstall:
     - ca-certificates
     - net-tools
     - wget
+    - locate
 
   late-commands:
     # Configuración inicial
@@ -139,6 +140,17 @@ autoinstall:
         echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main' > /etc/apt/sources.list.d/vscode.list;
         apt update;
         apt install code -y"
+
+    # Modernizar las fuentes de APT
+    - curtin in-target --target=/target -- bash -c "
+        apt modernize-sources"
+
+    # Configuración del PPA de OBS Studio para Ubuntu 24.10
+    - curtin in-target --target=/target -- bash -c "
+        add-apt-repository ppa:obsproject/obs-studio -y;
+        sed -i 's/plucky/mantic/g' /etc/apt/sources.list.d/obsproject-ubuntu-obs-studio-*.list;
+        apt update;
+        apt install obs-studio -y"
 
     # Actualización de base de datos (locate)
     - curtin in-target --target=/target -- updatedb
