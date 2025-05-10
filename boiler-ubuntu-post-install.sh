@@ -30,7 +30,9 @@ install_packages() {
     sudo apt install -y \
         ccze software-properties-common nano git sshpass make progress \
         docker-compose-v2 docker.io btop curl apt-transport-https \
-        ca-certificates net-tools wget
+        ca-certificates net-tools wget locate && \
+    sudo updatedb
+        
 }
 
 # Configurar hostname
