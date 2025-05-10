@@ -6,9 +6,93 @@ autoinstall:
     username: "__USERNAME__" # Pregunta por el nombre de usuario
     password: "$6$rounds=4096$changeme" # Contraseña cifrada; será personalizada
 
-  ssh:
-    install-server: true
-    allow-pw: true # Permitir acceso SSH con contraseña (ajusta según necesidades de seguridad)
+  storage:
+    config:
+      # Disco principal
+      - id: disk0
+        type: disk
+        ptable: gpt
+        path: /dev/nvme0n1
+        wipe: superblock
+        preserve: false
+        name: ''
+        grub_device: true
+
+      # Partición EFI
+      - id: disk0-part1
+        type: partition
+        number: 1
+        size: 1G
+        flag: boot
+        device: disk0
+        preserve: true
+      - id: efi
+        type: format
+        fstype: vfat
+        volume: disk0-part1
+        preserve: true
+      - id: efi-mount
+        type: mount
+        path: /boot/efi
+        device: efi
+        preserve: true
+
+      # Partición raíz "/"
+      - id: disk0-part2
+        type: partition
+        number: 2
+        size: 186.3G
+        device: disk0
+        preserve: false
+      - id: root
+        type: format
+        fstype: ext4
+        volume: disk0-part2
+      - id: root-mount
+        type: mount
+        path: /
+        device: root
+
+      # Partición swap
+      - id: disk0-part3
+        type: partition
+        number: 3
+        size: 5.6G
+        device: disk0
+        preserve: false
+      - id: swap
+        type: format
+        fstype: swap
+        volume: disk0-part3
+
+      # Partición "/home"
+      - id: disk0-part4
+        type: partition
+        number: 4
+        size: 139.7G
+        device: disk0
+        preserve: false
+      - id: home
+        type: format
+        fstype: ext4
+        volume: disk0-part4
+      - id: home-mount
+        type: mount
+        path: /home
+        device: home
+
+      # Partición "/storage" (preserva datos)
+      - id: disk0-part5
+        type: partition
+        number: 5
+        size: 144.3G
+        device: disk0
+        preserve: true
+      - id: storage
+        type: mount
+        path: /storage
+        device: disk0-part5
+        preserve: true
 
   packages:
     - ccze
@@ -33,45 +117,10 @@ autoinstall:
         echo 'export LANG=es_ES.UTF-8' >> /etc/bash.bashrc;
         echo 'export EDITOR=nano' >> /etc/bash.bashrc"
 
-    # Configuración de alias SSH
-    - curtin in-target --target=/target -- bash -c "
-        echo 'alias prometeo1=\"sshpass -p __PASSWORD__ ssh __USERNAME__@prometeo1\"' >> /etc/bash.bashrc;
-        echo 'alias titan1=\"sshpass -p __PASSWORD__ ssh __USERNAME__@titan1\"' >> /etc/bash.bashrc;
-        echo 'alias titan2=\"sshpass -p __PASSWORD__ ssh __USERNAME__@titan2\"' >> /etc/bash.bashrc;
-        echo 'alias titan3=\"sshpass -p __PASSWORD__ ssh __USERNAME__@titan3\"' >> /etc/bash.bashrc"
-
     # Configuración de Docker
     - curtin in-target --target=/target -- bash -c "
         usermod -aG docker __USERNAME__;
         chown __USERNAME__ /var/run/docker.sock"
-
-    # Generar clave SSH para GitHub
-    - curtin in-target --target=/target -- bash -c "
-        read -p 'Ingrese su nombre para la clave SSH: ' NAME;
-        read -p 'Ingrese su correo para la clave SSH: ' EMAIL;
-        ssh-keygen -t rsa -b 4096 -C \"$EMAIL\" -f /home/__USERNAME__/.ssh/github -N '';
-        eval \$(ssh-agent -s);
-        ssh-add /home/__USERNAME__/.ssh/github;
-        echo 'Clave SSH generada correctamente en /home/__USERNAME__/.ssh/github'"
-
-    # Instalación de OBS Studio
-    - curtin in-target --target=/target -- bash -c "
-        add-apt-repository ppa:obsproject/obs-studio -y;
-        apt update;
-        apt install obs-studio -y"
-
-    # Instalación de Visual Studio Code
-    - curtin in-target --target=/target -- bash -c "
-        wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/microsoft.gpg;
-        echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main' > /etc/apt/sources.list.d/vscode.list;
-        apt update;
-        apt install code -y"
-
-    # Instalación de Google Chrome
-    - curtin in-target --target=/target -- bash -c "
-        wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb;
-        dpkg -i google-chrome-stable_current_amd64.deb || apt install -f -y;
-        rm google-chrome-stable_current_amd64.deb"
 
     # Instalación de Postman
     - curtin in-target --target=/target -- bash -c "
@@ -80,22 +129,16 @@ autoinstall:
         ln -s /opt/Postman/Postman /usr/bin/postman;
         rm postman.tar.gz"
 
-    # Instalación de Go
+    # Anclar iconos al Dock
     - curtin in-target --target=/target -- bash -c "
-        wget https://go.dev/dl/go1.24.1.linux-amd64.tar.gz -O go.tar.gz;
-        tar xvfz go.tar.gz -C /usr/local/;
-        echo 'export PATH=\$PATH:/usr/local/go/bin' >> /etc/bash.bashrc;
-        rm go.tar.gz"
+        gsettings set org.gnome.shell favorite-apps \"['org.gnome.Terminal.desktop', 'code.desktop', 'postman.desktop']\""
 
-    # Instalación de Node.js con NVM
+    # Instalación de Visual Studio Code
     - curtin in-target --target=/target -- bash -c "
-        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.35.3/install.sh | bash;
-        source /root/.bashrc;
-        nvm install v20.17.0"
+        wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/microsoft.gpg;
+        echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main' > /etc/apt/sources.list.d/vscode.list;
+        apt update;
+        apt install code -y"
 
-    # Instalación de Oh My Bash
-    - curtin in-target --target=/target -- bash -c "
-        bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)\""
-
-    # Actualización de base de datos
+    # Actualización de base de datos (locate)
     - curtin in-target --target=/target -- updatedb
