@@ -2,16 +2,15 @@
 autoinstall:
   version: 1
   identity:
-    hostname: "{{ hostname }}" # Pregunta por el hostname durante la instalación
-    username: "{{ username }}" # Pregunta por el nombre de usuario
-    password: "{{ password | password_hash('crypt') }}" # Contraseña cifrada
+    hostname: "__HOSTNAME__" # Pregunta por el hostname durante la instalación
+    username: "__USERNAME__" # Pregunta por el nombre de usuario
+    password: "$6$rounds=4096$changeme" # Contraseña cifrada; será personalizada
 
   ssh:
     install-server: true
     allow-pw: true # Permitir acceso SSH con contraseña (ajusta según necesidades de seguridad)
 
   packages:
-    # Lista de paquetes a instalar durante la instalación
     - ccze
     - software-properties-common
     - nano
@@ -34,66 +33,69 @@ autoinstall:
         echo 'export LANG=es_ES.UTF-8' >> /etc/bash.bashrc;
         echo 'export EDITOR=nano' >> /etc/bash.bashrc"
 
-    # Configurar alias SSH
+    # Configuración de alias SSH
     - curtin in-target --target=/target -- bash -c "
-        echo 'alias prometeo1=\"sshpass -p {{ password }} ssh {{ username }}@prometeo1\"' >> /etc/bash.bashrc;
-        echo 'alias titan1=\"sshpass -p {{ password }} ssh {{ username }}@titan1\"' >> /etc/bash.bashrc;
-        echo 'alias titan2=\"sshpass -p {{ password }} ssh {{ username }}@titan2\"' >> /etc/bash.bashrc;
-        echo 'alias titan3=\"sshpass -p {{ password }} ssh {{ username }}@titan3\"' >> /etc/bash.bashrc"
+        echo 'alias prometeo1=\"sshpass -p __PASSWORD__ ssh __USERNAME__@prometeo1\"' >> /etc/bash.bashrc;
+        echo 'alias titan1=\"sshpass -p __PASSWORD__ ssh __USERNAME__@titan1\"' >> /etc/bash.bashrc;
+        echo 'alias titan2=\"sshpass -p __PASSWORD__ ssh __USERNAME__@titan2\"' >> /etc/bash.bashrc;
+        echo 'alias titan3=\"sshpass -p __PASSWORD__ ssh __USERNAME__@titan3\"' >> /etc/bash.bashrc"
 
-    # Configurar permisos para Docker
+    # Configuración de Docker
     - curtin in-target --target=/target -- bash -c "
-        usermod -aG docker {{ username }};
-        chown {{ username }} /var/run/docker.sock"
+        usermod -aG docker __USERNAME__;
+        chown __USERNAME__ /var/run/docker.sock"
 
     # Generar clave SSH para GitHub
     - curtin in-target --target=/target -- bash -c "
-        ssh-keygen -t rsa -b 4096 -C '{{ email }}' -f /home/{{ username }}/.ssh/github -N '';
+        read -p 'Ingrese su nombre para la clave SSH: ' NAME;
+        read -p 'Ingrese su correo para la clave SSH: ' EMAIL;
+        ssh-keygen -t rsa -b 4096 -C \"$EMAIL\" -f /home/__USERNAME__/.ssh/github -N '';
         eval \$(ssh-agent -s);
-        ssh-add /home/{{ username }}/.ssh/github"
+        ssh-add /home/__USERNAME__/.ssh/github;
+        echo 'Clave SSH generada correctamente en /home/__USERNAME__/.ssh/github'"
 
-    # Instalar OBS Studio
+    # Instalación de OBS Studio
     - curtin in-target --target=/target -- bash -c "
         add-apt-repository ppa:obsproject/obs-studio -y;
         apt update;
         apt install obs-studio -y"
 
-    # Instalar Visual Studio Code
+    # Instalación de Visual Studio Code
     - curtin in-target --target=/target -- bash -c "
         wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/microsoft.gpg;
         echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main' > /etc/apt/sources.list.d/vscode.list;
         apt update;
         apt install code -y"
 
-    # Instalar Google Chrome
+    # Instalación de Google Chrome
     - curtin in-target --target=/target -- bash -c "
         wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb;
         dpkg -i google-chrome-stable_current_amd64.deb || apt install -f -y;
         rm google-chrome-stable_current_amd64.deb"
 
-    # Instalar Postman
+    # Instalación de Postman
     - curtin in-target --target=/target -- bash -c "
         wget https://dl.pstmn.io/download/latest/linux_64 -O postman.tar.gz;
         tar -xzf postman.tar.gz -C /opt;
         ln -s /opt/Postman/Postman /usr/bin/postman;
         rm postman.tar.gz"
 
-    # Instalar Go
+    # Instalación de Go
     - curtin in-target --target=/target -- bash -c "
         wget https://go.dev/dl/go1.24.1.linux-amd64.tar.gz -O go.tar.gz;
         tar xvfz go.tar.gz -C /usr/local/;
         echo 'export PATH=\$PATH:/usr/local/go/bin' >> /etc/bash.bashrc;
         rm go.tar.gz"
 
-    # Instalar Node.js con NVM
+    # Instalación de Node.js con NVM
     - curtin in-target --target=/target -- bash -c "
         curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.35.3/install.sh | bash;
         source /root/.bashrc;
         nvm install v20.17.0"
 
-    # Instalar Oh My Bash
+    # Instalación de Oh My Bash
     - curtin in-target --target=/target -- bash -c "
         bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/ohmybash/oh-my-bash/master/tools/install.sh)\""
 
-    # Actualizar base de datos de ubicaciones
+    # Actualización de base de datos
     - curtin in-target --target=/target -- updatedb
